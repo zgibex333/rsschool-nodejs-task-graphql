@@ -1,11 +1,10 @@
 import { FastifyPluginAsyncJsonSchemaToTs } from '@fastify/type-provider-json-schema-to-ts';
 import { graphqlBodySchema } from './schema';
-
+import { validate } from 'graphql/validation';
 import {
   graphql,
   GraphQLSchema,
   GraphQLObjectType,
-  GraphQLString,
   GraphQLList,
   GraphQLNonNull,
   GraphQLID,
@@ -14,13 +13,22 @@ import {
   DetailedUserType,
   MembershipIDsEnum,
   MemberType,
-  PostsWithSubsribersType,
+  PostInputType,
   PostType,
+  ProfileInputType,
   ProfileType,
-  ProfileWithSubscriptionsType,
-  SubsTreeType,
+  SubscribeToUserInputType,
+  UnsubscribeFromUserInputType,
+  UpdateMemberTypeInputType,
+  UpdatePostInputType,
+  UpdateProfileInputType,
+  UpdateUserInputType,
+  UserInputType,
   UserType,
 } from './gql-types';
+import { UserEntity } from '../../utils/DB/entities/DBUsers';
+import depthLimit from 'graphql-depth-limit';
+import gglTag from 'graphql-tag';
 
 const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   fastify
@@ -33,6 +41,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
       },
     },
     async function (request, reply) {
+      // ПРОВЕРКИ НА NULL!!!
       const RootQueryType = new GraphQLObjectType({
         name: 'RootQueryType',
         description: 'Root Query Type',
@@ -183,156 +192,6 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
               };
             },
           },
-          profileWithSubscriptions: {
-            type: ProfileWithSubscriptionsType,
-            description: 'User`s profile and subscriptions',
-            args: {
-              id: { type: new GraphQLNonNull(GraphQLID) },
-            },
-            resolve: async (parent, args) => {
-              const user = await fastify.db.users.findOne({
-                key: 'id',
-                equals: args.id,
-              });
-              if (!user) throw fastify.httpErrors.notFound();
-              const profile = await fastify.db.profiles.findOne({
-                key: 'userId',
-                equals: args.id,
-              });
-              const subscriptions = await Promise.all(
-                user.subscribedToUserIds.map(async (subId) => {
-                  return await fastify.db.users.findOne({
-                    key: 'id',
-                    equals: subId,
-                  });
-                })
-              );
-              return {
-                user,
-                profile,
-                subscriptions,
-              };
-            },
-          },
-          postsWithSubscribers: {
-            type: PostsWithSubsribersType,
-            description: 'User`s posts and subscribers',
-            args: {
-              id: { type: new GraphQLNonNull(GraphQLID) },
-            },
-            resolve: async (parent, args) => {
-              const user = await fastify.db.users.findOne({
-                key: 'id',
-                equals: args.id,
-              });
-              if (!user) throw fastify.httpErrors.notFound();
-              const posts = await fastify.db.posts.findMany({
-                key: 'userId',
-                equals: args.id,
-              });
-              const allUsers = await fastify.db.users.findMany();
-              const subscribers = allUsers.filter((user) =>
-                user.subscribedToUserIds.includes(args.id)
-              );
-              return {
-                user,
-                posts,
-                subscribers,
-              };
-            },
-          },
-          subsTree: {
-            type: new GraphQLNonNull(new GraphQLList(SubsTreeType)),
-            description: 'Subs Tree',
-            resolve: async () => {
-              const users = await fastify.db.users.findMany();
-
-              const result = await Promise.all(
-                // map all users to get fields
-                users.map(async (user) => {
-                  // user's subscriptions
-                  const ids = user.subscribedToUserIds;
-                  const subscriptions = await Promise.all(
-                    // <-- ready nested object
-                    ids.map(async (id) => {
-                      // here is one
-                      const subscription = await fastify.db.users.findOne({
-                        // <-- inner user
-                        key: 'id',
-                        equals: id,
-                      });
-                      // find this one's subscriptions
-                      const subsctiptionSubscriptions = // <-- next to it his subscriptions
-                        subscription?.subscribedToUserIds
-                          ? await Promise.all(
-                              subscription.subscribedToUserIds.map(
-                                async (id) => {
-                                  return await fastify.db.users.findOne({
-                                    key: 'id',
-                                    equals: id,
-                                  });
-                                }
-                              )
-                            )
-                          : [];
-                      // now find this one's subscribers
-                      const subsctiptionSubscribers = subscription?.id // <-- next to it his subs
-                        ? users.filter((possibleSub) =>
-                            possibleSub.subscribedToUserIds.includes(
-                              subscription.id
-                            )
-                          )
-                        : [];
-                      // done, return nested one
-                      return {
-                        user: subscription,
-                        subscriptions: subsctiptionSubscriptions,
-                        subscribers: subsctiptionSubscribers,
-                      };
-                    })
-                  );
-                  const subscribers = users.filter((possibleSub) =>
-                    possibleSub.subscribedToUserIds.includes(user.id)
-                  );
-                  const subscribersSubscriptions = await Promise.all(
-                    // <-- ready nested object
-                    subscribers.map(async (subscriber) => {
-                      // find this one's subscriptions
-                      const subsctiptionSubscriptions = // <-- next to it his subscriptions
-                        await Promise.all(
-                          subscriber.subscribedToUserIds.map(async (id) => {
-                            return await fastify.db.users.findOne({
-                              key: 'id',
-                              equals: id,
-                            });
-                          })
-                        );
-
-                      // now find this one's subscribers
-                      const subsctiptionSubscribers =
-                        users.filter((possibleSub) =>
-                            possibleSub.subscribedToUserIds.includes(
-                              subscriber.id
-                            )
-                          )
-                      // done, return nested one
-                      return {
-                        user: subscriber,
-                        subscriptions: subsctiptionSubscriptions,
-                        subscribers: subsctiptionSubscribers,
-                      };
-                    })
-                  );
-                  return {
-                    user,
-                    subscriptions,
-                    subscribers: subscribersSubscriptions,
-                  };
-                })
-              );
-              return result;
-            },
-          },
         }),
       });
 
@@ -344,12 +203,10 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
             type: UserType,
             description: 'Add a user',
             args: {
-              email: { type: new GraphQLNonNull(GraphQLString) },
-              firstName: { type: new GraphQLNonNull(GraphQLString) },
-              lastName: { type: new GraphQLNonNull(GraphQLString) },
+              user: { type: UserInputType },
             },
             resolve: async (parent, args) => {
-              const newUser = await fastify.db.users.create(args);
+              const newUser = await fastify.db.users.create(args.user);
               if (!newUser) throw fastify.httpErrors.HttpError;
               return newUser;
             },
@@ -357,18 +214,22 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
           addProfile: {
             type: ProfileType,
             description: 'Add a profile',
-            args: {
-              avatar: { type: new GraphQLNonNull(GraphQLString) },
-              birthday: { type: new GraphQLNonNull(GraphQLString) },
-              city: { type: new GraphQLNonNull(GraphQLString) },
-              country: { type: new GraphQLNonNull(GraphQLString) },
-              memberTypeId: { type: new GraphQLNonNull(MembershipIDsEnum) },
-              sex: { type: new GraphQLNonNull(GraphQLString) },
-              street: { type: new GraphQLNonNull(GraphQLString) },
-              userId: { type: new GraphQLNonNull(GraphQLID) },
-            },
+            args: { profile: { type: ProfileInputType } },
             resolve: async (parent, args) => {
-              const newPost = await fastify.db.posts.create(args);
+              const user = await fastify.db.users.findOne({
+                key: 'id',
+                equals: args.profile.userId,
+              });
+              const duplicate = !!(await fastify.db.profiles.findOne({
+                key: 'userId',
+                equals: args.profile.userId,
+              }));
+              if (!user)
+                throw fastify.httpErrors.badRequest("User doesn't exist");
+              if (duplicate) {
+                throw fastify.httpErrors.badRequest('User already has profile');
+              }
+              const newPost = await fastify.db.profiles.create(args.profile);
               if (!newPost) throw fastify.httpErrors.HttpError;
               return newPost;
             },
@@ -377,20 +238,180 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
             type: PostType,
             description: 'Add a post',
             args: {
-              content: { type: new GraphQLNonNull(GraphQLString) },
-              title: { type: new GraphQLNonNull(GraphQLString) },
-              userId: { type: new GraphQLNonNull(GraphQLID) },
+              post: { type: PostInputType },
             },
             resolve: async (parent, args) => {
               const user = await fastify.db.users.findOne({
                 key: 'id',
-                equals: args.userId,
+                equals: args.post.userId,
               });
               if (!user)
                 throw fastify.httpErrors.badRequest("User doesn't exist");
-              const newPost = await fastify.db.posts.create(args);
+              const newPost = await fastify.db.posts.create(args.post);
               if (!newPost) throw fastify.httpErrors.HttpError;
               return newPost;
+            },
+          },
+          updateUser: {
+            // null checks
+            type: UserType,
+            description: 'Update user',
+            args: {
+              userInfo: { type: UpdateUserInputType },
+            },
+            resolve: async (parent, args): Promise<UserEntity> => {
+              const { id, ...payload } = args.userInfo;
+              const user = await fastify.db.users.findOne({
+                key: 'id',
+                equals: id,
+              });
+              if (!user) throw fastify.httpErrors.notFound();
+              const updatedUser = await fastify.db.users.change(
+                user.id,
+                payload
+              );
+              return updatedUser;
+            },
+          },
+          updateProfile: {
+            // null checks
+            type: ProfileType,
+            description: 'Profile Type',
+            args: {
+              profileInfo: {
+                type: UpdateProfileInputType,
+              },
+            },
+            resolve: async (parent, args) => {
+              const { id, ...payload } = args.profileInfo;
+              const profile = await fastify.db.profiles.findOne({
+                key: 'id',
+                equals: args.profileInfo.id,
+              });
+              if (!profile) throw fastify.httpErrors.notFound();
+              const updatedProfile = await fastify.db.profiles.change(
+                profile.id,
+                payload
+              );
+              return updatedProfile;
+            },
+          },
+          updatePost: {
+            // null checks
+            type: PostType,
+            description: 'Post Type',
+            args: {
+              postInfo: {
+                type: UpdatePostInputType,
+              },
+            },
+            resolve: async (parent, args) => {
+              const { id, ...payload } = args.postInfo;
+              const post = await fastify.db.posts.findOne({
+                key: 'id',
+                equals: id,
+              });
+              if (!post) throw fastify.httpErrors.notFound();
+              const updatedPost = await fastify.db.posts.change(
+                post.id,
+                payload
+              );
+              return updatedPost;
+            },
+          },
+          updateMemberType: {
+            // null checks
+            type: MemberType,
+            description: 'UpdateMemberTypeType',
+            args: {
+              memberTypeInfo: {
+                type: UpdateMemberTypeInputType,
+              },
+            },
+            resolve: async (parent, args) => {
+              const { id, discount, monthPostsLimit } = args.memberTypeInfo;
+              const memberType = await fastify.db.memberTypes.findOne({
+                key: 'id',
+                equals: id,
+              });
+              if (!memberType) throw fastify.httpErrors.badRequest();
+              if (
+                !(
+                  typeof discount === 'number' ||
+                  typeof monthPostsLimit === 'number'
+                )
+              )
+                throw fastify.httpErrors.badRequest(
+                  'At least one post field is required'
+                );
+              const updateMemberType = await fastify.db.memberTypes.change(id, {
+                discount: discount ?? memberType.discount,
+                monthPostsLimit: monthPostsLimit ?? memberType.monthPostsLimit,
+              });
+              return updateMemberType;
+            },
+          },
+          subscribeToUser: {
+            type: UserType,
+            description: 'Subscribe To User',
+            args: {
+              subscribeInfo: { type: SubscribeToUserInputType },
+            },
+            resolve: async (parent, args) => {
+              const { userId, subscribeToId } = args.subscribeInfo;
+              const user = await fastify.db.users.findOne({
+                key: 'id',
+                equals: userId,
+              });
+              const subscription = await fastify.db.users.findOne({
+                key: 'id',
+                equals: subscribeToId,
+              });
+              if (!user || !subscription)
+                throw fastify.httpErrors.badRequest("Entity(ies) don't exist");
+              const { subscribedToUserIds } = user;
+              if (subscribedToUserIds.includes(subscription.id))
+                throw fastify.httpErrors.unprocessableEntity("Already subscribed");
+              const updatedSubscriptions = [
+                ...subscribedToUserIds,
+                subscription.id,
+              ];
+              const updatedUser = await fastify.db.users.change(userId, {
+                subscribedToUserIds: updatedSubscriptions,
+              });
+              return updatedUser;
+            },
+          },
+          unsubscribeFromUser: {
+            type: UserType,
+            description: 'Unsubscribe from user',
+            args: {
+              unsubscribeInfo: {
+                type: UnsubscribeFromUserInputType,
+              },
+            },
+            resolve: async (parent, args) => {
+              const { userId, unsubscribeFromId } = args.unsubscribeInfo;
+              const user = await fastify.db.users.findOne({
+                key: 'id',
+                equals: userId,
+              });
+              const subscription = await fastify.db.users.findOne({
+                key: 'id',
+                equals: unsubscribeFromId,
+              });
+              if (!user || !subscription)
+                throw fastify.httpErrors.badRequest("Entity(ies) don't exist");
+              const { subscribedToUserIds } = user;
+              if (!subscribedToUserIds.includes(subscription.id))
+                throw fastify.httpErrors.unprocessableEntity('Already unsubscribed');
+              const updatedSubscriptions = subscribedToUserIds.filter(
+                (id) => id !== subscription.id
+              );
+              const updatedUser = await fastify.db.users.change(userId, {
+                subscribedToUserIds: updatedSubscriptions,
+              });
+              return updatedUser;
             },
           },
         }),
@@ -399,13 +420,33 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
       const taskSchema = new GraphQLSchema({
         query: RootQueryType,
         mutation: RootMutationType,
-        
       });
+      const depth = 6;
+      let isValid = true;
+      if (request.body.query) {
+        const validation = validate(taskSchema, gglTag(request.body.query), [
+          depthLimit(depth),
+        ]);
+        if (validation.length > 0) isValid = false;
+      }
+      if (!isValid) {
+        const responseError = {
+          errors: [
+            {
+              message: `Max depth is ${depth}`,
+            },
+          ],
+          data: null,
+        };
+        reply.send({ responseError });
+        return;
+      }
 
       return await graphql({
         schema: taskSchema,
         source: String(request.body.query),
-
+        contextValue: fastify,
+        variableValues: request.body.variables,
       });
     }
   );
