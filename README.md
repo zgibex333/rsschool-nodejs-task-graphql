@@ -440,6 +440,7 @@
    3.1. List where the dataloader was used with links to the lines of code (creation in gql context and call in resolver).
 4. Limit the complexity of the graphql queries by their depth with [graphql-depth-limit](https://www.npmjs.com/package/graphql-depth-limit) package.  
    4.1. Provide a link to the line of code where it was used.  
+   [Show where it was used](https://github.com/zgibex333/rsschool-nodejs-task-graphql/blob/cae6c4277b7be7de8cdb71b665571b78053b8f24/src/routes/graphql/index.ts#L478)
    4.2. Specify a POST body of gql query that ends with an error due to the operation of the rule. Request result should be with `errors` field (and with or without `data:null`) describing the error.
    ```
    CAUSES ERROR - <MAX DEPTH IS 6>
