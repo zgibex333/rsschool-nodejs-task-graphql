@@ -1,23 +1,23 @@
-import { FastifyPluginAsyncJsonSchemaToTs } from "@fastify/type-provider-json-schema-to-ts";
-import { idParamSchema } from "../../utils/reusedSchemas";
+import { FastifyPluginAsyncJsonSchemaToTs } from '@fastify/type-provider-json-schema-to-ts';
+import { idParamSchema } from '../../utils/reusedSchemas';
 import {
   createUserBodySchema,
   changeUserBodySchema,
   subscribeBodySchema,
-} from "./schemas";
-import type { UserEntity } from "../../utils/DB/entities/DBUsers";
+} from './schemas';
+import type { UserEntity } from '../../utils/DB/entities/DBUsers';
 
 const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   fastify
 ): Promise<void> => {
-  fastify.get("/", async function (request, reply): Promise<UserEntity[]> {
+  fastify.get('/', async function (request, reply): Promise<UserEntity[]> {
     const users = await fastify.db.users.findMany();
     if (!users) throw fastify.httpErrors.notFound();
     return users;
   });
 
   fastify.get(
-    "/:id",
+    '/:id',
     {
       schema: {
         params: idParamSchema,
@@ -25,7 +25,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
     },
     async function (request, reply): Promise<UserEntity> {
       const user = await fastify.db.users.findOne({
-        key: "id",
+        key: 'id',
         equals: request.params.id,
       });
       if (!user) throw fastify.httpErrors.notFound();
@@ -34,7 +34,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.post(
-    "/",
+    '/',
     {
       schema: {
         body: createUserBodySchema,
@@ -43,11 +43,11 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
     async function (request, reply): Promise<UserEntity> {
       const { email, firstName, lastName } = request.body;
       if (
-        typeof email !== "string" ||
+        typeof email !== 'string' ||
         !email ||
-        typeof firstName !== "string" ||
+        typeof firstName !== 'string' ||
         !firstName ||
-        typeof lastName !== "string" ||
+        typeof lastName !== 'string' ||
         !lastName
       )
         throw fastify.httpErrors.badRequest();
@@ -58,7 +58,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.delete(
-    "/:id",
+    '/:id',
     {
       schema: {
         params: idParamSchema,
@@ -78,12 +78,12 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
           });
         }
         const profile = await fastify.db.profiles.findOne({
-          key: "userId",
+          key: 'userId',
           equals: reqUser.id,
         });
         if (profile) await fastify.db.profiles.delete(profile.id);
         const posts = await fastify.db.posts.findMany({
-          key: "userId",
+          key: 'userId',
           equals: reqUser.id,
         });
         for await (const post of posts) {
@@ -97,7 +97,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.post(
-    "/:id/subscribeTo",
+    '/:id/subscribeTo',
     {
       schema: {
         body: subscribeBodySchema,
@@ -107,12 +107,12 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
     async function (request, reply): Promise<UserEntity> {
       const { params, body } = request;
       const user = await fastify.db.users.findOne({
-        key: "id",
+        key: 'id',
         equals: body.userId,
       });
       if (!user) throw fastify.httpErrors.notFound();
       const subscription = await fastify.db.users.findOne({
-        key: "id",
+        key: 'id',
         equals: params.id,
       });
       if (!subscription) throw fastify.httpErrors.badRequest();
@@ -130,7 +130,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.post(
-    "/:id/unsubscribeFrom",
+    '/:id/unsubscribeFrom',
     {
       schema: {
         body: subscribeBodySchema,
@@ -141,12 +141,12 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
       const { params, body } = request;
 
       const user = await fastify.db.users.findOne({
-        key: "id",
+        key: 'id',
         equals: body.userId,
       });
       if (!user) throw fastify.httpErrors.notFound();
       const subscription = await fastify.db.users.findOne({
-        key: "id",
+        key: 'id',
         equals: params.id,
       });
       if (!subscription) throw fastify.httpErrors.badRequest();
@@ -167,7 +167,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.patch(
-    "/:id",
+    '/:id',
     {
       schema: {
         body: changeUserBodySchema,
@@ -180,9 +180,9 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
       try {
         if (
           !(
-            (typeof email === "string" && email) ||
-            (typeof firstName === "string" && firstName) ||
-            (typeof lastName === "string" && lastName)
+            (typeof email === 'string' && email) ||
+            (typeof firstName === 'string' && firstName) ||
+            (typeof lastName === 'string' && lastName)
           )
         )
           throw fastify.httpErrors.badRequest();

@@ -1,12 +1,12 @@
-import { FastifyPluginAsyncJsonSchemaToTs } from "@fastify/type-provider-json-schema-to-ts";
-import { idParamSchema } from "../../utils/reusedSchemas";
-import { changeMemberTypeBodySchema } from "./schema";
-import type { MemberTypeEntity } from "../../utils/DB/entities/DBMemberTypes";
+import { FastifyPluginAsyncJsonSchemaToTs } from '@fastify/type-provider-json-schema-to-ts';
+import { idParamSchema } from '../../utils/reusedSchemas';
+import { changeMemberTypeBodySchema } from './schema';
+import type { MemberTypeEntity } from '../../utils/DB/entities/DBMemberTypes';
 
 const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   fastify
 ): Promise<void> => {
-  fastify.get("/", async function (request, reply): Promise<
+  fastify.get('/', async function (request, reply): Promise<
     MemberTypeEntity[]
   > {
     const memberTypes = await fastify.db.memberTypes.findMany();
@@ -15,7 +15,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   });
 
   fastify.get(
-    "/:id",
+    '/:id',
     {
       schema: {
         params: idParamSchema,
@@ -23,7 +23,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
     },
     async function (request, reply): Promise<MemberTypeEntity> {
       const memberType = await fastify.db.memberTypes.findOne({
-        key: "id",
+        key: 'id',
         equals: request.params.id,
       });
       if (!memberType) throw fastify.httpErrors.notFound();
@@ -32,7 +32,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.patch(
-    "/:id",
+    '/:id',
     {
       schema: {
         body: changeMemberTypeBodySchema,
@@ -42,7 +42,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
     async function (request, reply): Promise<MemberTypeEntity> {
       const { discount, monthPostsLimit } = request.body;
       if (
-        !(typeof discount === "number" || typeof monthPostsLimit === "number")
+        !(typeof discount === 'number' || typeof monthPostsLimit === 'number')
       )
         throw fastify.httpErrors.badRequest();
       try {

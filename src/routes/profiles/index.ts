@@ -1,19 +1,19 @@
-import { FastifyPluginAsyncJsonSchemaToTs } from "@fastify/type-provider-json-schema-to-ts";
-import { idParamSchema } from "../../utils/reusedSchemas";
-import { createProfileBodySchema, changeProfileBodySchema } from "./schema";
-import type { ProfileEntity } from "../../utils/DB/entities/DBProfiles";
+import { FastifyPluginAsyncJsonSchemaToTs } from '@fastify/type-provider-json-schema-to-ts';
+import { idParamSchema } from '../../utils/reusedSchemas';
+import { createProfileBodySchema, changeProfileBodySchema } from './schema';
+import type { ProfileEntity } from '../../utils/DB/entities/DBProfiles';
 
 const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   fastify
 ): Promise<void> => {
-  fastify.get("/", async function (request, reply): Promise<ProfileEntity[]> {
+  fastify.get('/', async function (request, reply): Promise<ProfileEntity[]> {
     const profiles = await fastify.db.profiles.findMany();
     if (!profiles) throw fastify.httpErrors.notFound();
     return profiles;
   });
 
   fastify.get(
-    "/:id",
+    '/:id',
     {
       schema: {
         params: idParamSchema,
@@ -21,7 +21,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
     },
     async function (request, reply): Promise<ProfileEntity> {
       const profile = await fastify.db.profiles.findOne({
-        key: "id",
+        key: 'id',
         equals: request.params.id,
       });
       if (!profile) throw fastify.httpErrors.notFound();
@@ -30,7 +30,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.post(
-    "/",
+    '/',
     {
       schema: {
         body: createProfileBodySchema,
@@ -48,29 +48,29 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
         userId,
       } = request.body;
       if (
-        typeof avatar !== "string" ||
+        typeof avatar !== 'string' ||
         !avatar ||
-        typeof city !== "string" ||
+        typeof city !== 'string' ||
         !city ||
-        typeof country !== "string" ||
+        typeof country !== 'string' ||
         !country ||
-        typeof memberTypeId !== "string" ||
+        typeof memberTypeId !== 'string' ||
         !memberTypeId ||
-        typeof sex !== "string" ||
+        typeof sex !== 'string' ||
         !sex ||
-        typeof street !== "string" ||
+        typeof street !== 'string' ||
         !street ||
-        typeof userId !== "string" ||
+        typeof userId !== 'string' ||
         !userId ||
-        typeof birthday !== "number"
+        typeof birthday !== 'number'
       )
         throw fastify.httpErrors.badRequest();
       const existingMemberType = !!(await fastify.db.memberTypes.findOne({
-        key: "id",
+        key: 'id',
         equals: memberTypeId,
       }));
       const duplicate = !!(await fastify.db.profiles.findOne({
-        key: "userId",
+        key: 'userId',
         equals: userId,
       }));
       if (!existingMemberType || duplicate)
@@ -82,7 +82,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.delete(
-    "/:id",
+    '/:id',
     {
       schema: {
         params: idParamSchema,
@@ -100,7 +100,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.patch(
-    "/:id",
+    '/:id',
     {
       schema: {
         body: changeProfileBodySchema,
@@ -113,13 +113,13 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
 
       if (
         !(
-          (typeof avatar === "string" && avatar) ||
-          (typeof city === "string" && city) ||
-          (typeof country === "string" && country) ||
-          (typeof memberTypeId === "string" && memberTypeId) ||
-          (typeof sex === "string" && sex) ||
-          (typeof street === "string" && street) ||
-          typeof birthday === "number"
+          (typeof avatar === 'string' && avatar) ||
+          (typeof city === 'string' && city) ||
+          (typeof country === 'string' && country) ||
+          (typeof memberTypeId === 'string' && memberTypeId) ||
+          (typeof sex === 'string' && sex) ||
+          (typeof street === 'string' && street) ||
+          typeof birthday === 'number'
         )
       )
         throw fastify.httpErrors.badRequest();

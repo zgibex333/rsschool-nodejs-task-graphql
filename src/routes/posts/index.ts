@@ -1,19 +1,19 @@
-import { FastifyPluginAsyncJsonSchemaToTs } from "@fastify/type-provider-json-schema-to-ts";
-import { idParamSchema } from "../../utils/reusedSchemas";
-import { createPostBodySchema, changePostBodySchema } from "./schema";
-import type { PostEntity } from "../../utils/DB/entities/DBPosts";
+import { FastifyPluginAsyncJsonSchemaToTs } from '@fastify/type-provider-json-schema-to-ts';
+import { idParamSchema } from '../../utils/reusedSchemas';
+import { createPostBodySchema, changePostBodySchema } from './schema';
+import type { PostEntity } from '../../utils/DB/entities/DBPosts';
 
 const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   fastify
 ): Promise<void> => {
-  fastify.get("/", async function (request, reply): Promise<PostEntity[]> {
+  fastify.get('/', async function (request, reply): Promise<PostEntity[]> {
     const posts = await fastify.db.posts.findMany();
     if (!posts) throw fastify.httpErrors.notFound();
     return posts;
   });
 
   fastify.get(
-    "/:id",
+    '/:id',
     {
       schema: {
         params: idParamSchema,
@@ -21,7 +21,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
     },
     async function (request, reply): Promise<PostEntity> {
       const post = await fastify.db.posts.findOne({
-        key: "id",
+        key: 'id',
         equals: request.params.id,
       });
       if (!post) throw fastify.httpErrors.notFound();
@@ -30,7 +30,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.post(
-    "/",
+    '/',
     {
       schema: {
         body: createPostBodySchema,
@@ -39,9 +39,9 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
     async function (request, reply): Promise<PostEntity> {
       const { content, title, userId } = request.body;
       if (
-        typeof content !== "string" ||
-        typeof title !== "string" ||
-        typeof userId !== "string" ||
+        typeof content !== 'string' ||
+        typeof title !== 'string' ||
+        typeof userId !== 'string' ||
         !content ||
         !title ||
         !userId
@@ -55,7 +55,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.delete(
-    "/:id",
+    '/:id',
     {
       schema: {
         params: idParamSchema,
@@ -73,7 +73,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   );
 
   fastify.patch(
-    "/:id",
+    '/:id',
     {
       schema: {
         body: changePostBodySchema,
@@ -84,8 +84,8 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
       const { content, title } = request.body;
       if (
         !(
-          (typeof content === "string" && content) ||
-          (typeof title === "string" && title)
+          (typeof content === 'string' && content) ||
+          (typeof title === 'string' && title)
         )
       )
         throw fastify.httpErrors.badRequest();
