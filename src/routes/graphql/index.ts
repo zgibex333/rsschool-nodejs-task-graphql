@@ -10,7 +10,6 @@ import {
   GraphQLID,
 } from 'graphql';
 import {
-  DetailedUserType,
   MembershipIDsEnum,
   MemberType,
   PostInputType,
@@ -41,7 +40,6 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
       },
     },
     async function (request, reply) {
-      // ПРОВЕРКИ НА NULL!!!
       const RootQueryType = new GraphQLObjectType({
         name: 'RootQueryType',
         description: 'Root Query Type',
@@ -124,74 +122,6 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
               return memberType;
             },
           },
-          detailedUsers: {
-            type: new GraphQLNonNull(new GraphQLList(DetailedUserType)),
-            description: 'Detailed All Users Info',
-            resolve: async () => {
-              const users = await fastify.db.users.findMany();
-              if (!users.length) return [];
-              return await Promise.all(
-                users.map(async (user) => {
-                  const profile = await fastify.db.profiles.findOne({
-                    key: 'userId',
-                    equals: user.id,
-                  });
-                  const posts = await fastify.db.posts.findMany({
-                    key: 'userId',
-                    equals: user.id,
-                  });
-                  const memberType = profile?.memberTypeId
-                    ? await fastify.db.memberTypes.findOne({
-                        key: 'id',
-                        equals: profile.memberTypeId,
-                      })
-                    : null;
-                  return {
-                    user,
-                    posts,
-                    memberType,
-                    profile,
-                  };
-                })
-              );
-            },
-          },
-          detailedUser: {
-            type: DetailedUserType,
-            description: 'Detailed UserInfo by ID',
-            args: {
-              id: { type: new GraphQLNonNull(GraphQLID) },
-            },
-            resolve: async (parent, args) => {
-              const user = await fastify.db.users.findOne({
-                key: 'id',
-                equals: args.id,
-              });
-              if (!user) throw fastify.httpErrors.notFound();
-              const profile = await fastify.db.profiles.findOne({
-                key: 'userId',
-                equals: args.id,
-              });
-              const posts = await fastify.db.posts.findMany({
-                key: 'userId',
-                equals: args.id,
-              });
-
-              const memberType = profile?.memberTypeId
-                ? await fastify.db.memberTypes.findOne({
-                    key: 'id',
-                    equals: profile.memberTypeId,
-                  })
-                : null;
-
-              return {
-                user,
-                profile,
-                posts,
-                memberType,
-              };
-            },
-          },
         }),
       });
 
@@ -206,6 +136,20 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
               user: { type: UserInputType },
             },
             resolve: async (parent, args) => {
+              if (!args.user)
+                throw fastify.httpErrors.badRequest('Provide required fields');
+              const { email, firstName, lastName } = args.user;
+              if (
+                typeof email !== 'string' ||
+                !email ||
+                typeof firstName !== 'string' ||
+                !firstName ||
+                typeof lastName !== 'string' ||
+                !lastName
+              )
+                throw fastify.httpErrors.badRequest(
+                  'All fields of correct type are required'
+                );
               const newUser = await fastify.db.users.create(args.user);
               if (!newUser) throw fastify.httpErrors.HttpError;
               return newUser;
@@ -216,6 +160,38 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
             description: 'Add a profile',
             args: { profile: { type: ProfileInputType } },
             resolve: async (parent, args) => {
+              if (!args.profile)
+                throw fastify.httpErrors.badRequest('Provide required fields');
+              const {
+                avatar,
+                birthday,
+                city,
+                country,
+                memberTypeId,
+                sex,
+                street,
+                userId,
+              } = args.profile;
+              if (
+                typeof avatar !== 'string' ||
+                !avatar ||
+                typeof city !== 'string' ||
+                !city ||
+                typeof country !== 'string' ||
+                !country ||
+                typeof memberTypeId !== 'string' ||
+                !memberTypeId ||
+                typeof sex !== 'string' ||
+                !sex ||
+                typeof street !== 'string' ||
+                !street ||
+                typeof userId !== 'string' ||
+                !userId ||
+                typeof birthday !== 'number'
+              )
+                throw fastify.httpErrors.badRequest(
+                  'All fields of correct type are required'
+                );
               const user = await fastify.db.users.findOne({
                 key: 'id',
                 equals: args.profile.userId,
@@ -241,6 +217,18 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
               post: { type: PostInputType },
             },
             resolve: async (parent, args) => {
+              if (!args.post)
+                throw fastify.httpErrors.badRequest('Provide required fields');
+              const { content, title, userId } = args.post;
+              if (
+                typeof content !== 'string' ||
+                typeof title !== 'string' ||
+                typeof userId !== 'string' ||
+                !content ||
+                !title ||
+                !userId
+              )
+                throw fastify.httpErrors.badRequest();
               const user = await fastify.db.users.findOne({
                 key: 'id',
                 equals: args.post.userId,
@@ -253,28 +241,39 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
             },
           },
           updateUser: {
-            // null checks
             type: UserType,
             description: 'Update user',
             args: {
               userInfo: { type: UpdateUserInputType },
             },
             resolve: async (parent, args): Promise<UserEntity> => {
-              const { id, ...payload } = args.userInfo;
+              if (!args.userInfo)
+                throw fastify.httpErrors.badRequest('Provide required fields');
+              const { id, email, firstName, lastName } = args.userInfo;
+              if (
+                !(
+                  (typeof email === 'string' && email) ||
+                  (typeof firstName === 'string' && firstName) ||
+                  (typeof lastName === 'string' && lastName)
+                )
+              )
+                throw fastify.httpErrors.badRequest(
+                  'Provide at least one field with correct type'
+                );
               const user = await fastify.db.users.findOne({
                 key: 'id',
                 equals: id,
               });
               if (!user) throw fastify.httpErrors.notFound();
-              const updatedUser = await fastify.db.users.change(
-                user.id,
-                payload
-              );
+              const updatedUser = await fastify.db.users.change(user.id, {
+                email: email ?? user.email,
+                firstName: firstName ?? user.firstName,
+                lastName: lastName ?? user.lastName,
+              });
               return updatedUser;
             },
           },
           updateProfile: {
-            // null checks
             type: ProfileType,
             description: 'Profile Type',
             args: {
@@ -283,21 +282,53 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
               },
             },
             resolve: async (parent, args) => {
-              const { id, ...payload } = args.profileInfo;
+              if (!args.profileInfo)
+                throw fastify.httpErrors.badRequest('Provide required fields');
+              const {
+                id,
+                avatar,
+                birthday,
+                city,
+                country,
+                memberTypeId,
+                sex,
+                street,
+              } = args.profileInfo;
+              if (
+                !(
+                  (typeof avatar === 'string' && avatar) ||
+                  (typeof city === 'string' && city) ||
+                  (typeof country === 'string' && country) ||
+                  (typeof memberTypeId === 'string' && memberTypeId) ||
+                  (typeof sex === 'string' && sex) ||
+                  (typeof street === 'string' && street) ||
+                  typeof birthday === 'number'
+                )
+              )
+                throw fastify.httpErrors.badRequest(
+                  'Provide at least one field with correct type'
+                );
               const profile = await fastify.db.profiles.findOne({
                 key: 'id',
-                equals: args.profileInfo.id,
+                equals: id,
               });
               if (!profile) throw fastify.httpErrors.notFound();
               const updatedProfile = await fastify.db.profiles.change(
                 profile.id,
-                payload
+                {
+                  avatar: avatar ?? profile.avatar,
+                  city: city ?? profile.city,
+                  country: country ?? profile.country,
+                  memberTypeId: memberTypeId ?? profile.memberTypeId,
+                  sex: sex ?? profile.sex,
+                  street: street ?? profile.street,
+                  birthday: birthday ?? profile.birthday,
+                }
               );
               return updatedProfile;
             },
           },
           updatePost: {
-            // null checks
             type: PostType,
             description: 'Post Type',
             args: {
@@ -306,21 +337,31 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
               },
             },
             resolve: async (parent, args) => {
-              const { id, ...payload } = args.postInfo;
+              if (!args.postInfo)
+                throw fastify.httpErrors.badRequest('Provide required fields');
+              const { id, content, title } = args.postInfo;
+              if (
+                !(
+                  (typeof content === 'string' && content) ||
+                  (typeof title === 'string' && title)
+                )
+              )
+                throw fastify.httpErrors.badRequest(
+                  'Provide at least one field with correct type'
+                );
               const post = await fastify.db.posts.findOne({
                 key: 'id',
                 equals: id,
               });
               if (!post) throw fastify.httpErrors.notFound();
-              const updatedPost = await fastify.db.posts.change(
-                post.id,
-                payload
-              );
+              const updatedPost = await fastify.db.posts.change(post.id, {
+                content: content ?? post.content,
+                title: title ?? post.title,
+              });
               return updatedPost;
             },
           },
           updateMemberType: {
-            // null checks
             type: MemberType,
             description: 'UpdateMemberTypeType',
             args: {
@@ -329,6 +370,8 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
               },
             },
             resolve: async (parent, args) => {
+              if (!args.memberTypeInfo)
+                throw fastify.httpErrors.badRequest('Provide required fields');
               const { id, discount, monthPostsLimit } = args.memberTypeInfo;
               const memberType = await fastify.db.memberTypes.findOne({
                 key: 'id',
@@ -342,7 +385,7 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
                 )
               )
                 throw fastify.httpErrors.badRequest(
-                  'At least one post field is required'
+                  'Provide at least one field with correct type'
                 );
               const updateMemberType = await fastify.db.memberTypes.change(id, {
                 discount: discount ?? memberType.discount,
@@ -358,6 +401,8 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
               subscribeInfo: { type: SubscribeToUserInputType },
             },
             resolve: async (parent, args) => {
+              if (!args.subscribeInfo)
+                throw fastify.httpErrors.badRequest('Provide required fields');
               const { userId, subscribeToId } = args.subscribeInfo;
               const user = await fastify.db.users.findOne({
                 key: 'id',
@@ -371,7 +416,9 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
                 throw fastify.httpErrors.badRequest("Entity(ies) don't exist");
               const { subscribedToUserIds } = user;
               if (subscribedToUserIds.includes(subscription.id))
-                throw fastify.httpErrors.unprocessableEntity("Already subscribed");
+                throw fastify.httpErrors.unprocessableEntity(
+                  'Already subscribed'
+                );
               const updatedSubscriptions = [
                 ...subscribedToUserIds,
                 subscription.id,
@@ -391,6 +438,8 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
               },
             },
             resolve: async (parent, args) => {
+              if (!args.unsubscribeInfo)
+                throw fastify.httpErrors.badRequest('Provide required fields');
               const { userId, unsubscribeFromId } = args.unsubscribeInfo;
               const user = await fastify.db.users.findOne({
                 key: 'id',
@@ -404,7 +453,9 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
                 throw fastify.httpErrors.badRequest("Entity(ies) don't exist");
               const { subscribedToUserIds } = user;
               if (!subscribedToUserIds.includes(subscription.id))
-                throw fastify.httpErrors.unprocessableEntity('Already unsubscribed');
+                throw fastify.httpErrors.unprocessableEntity(
+                  'Already unsubscribed'
+                );
               const updatedSubscriptions = subscribedToUserIds.filter(
                 (id) => id !== subscription.id
               );

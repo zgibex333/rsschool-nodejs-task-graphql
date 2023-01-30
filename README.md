@@ -40,6 +40,11 @@
          content
          userId
       }
+      memberTypes {
+         id
+         discount
+         monthPostsLimit
+      }
    }
 
    ```
@@ -92,12 +97,11 @@
    ```
 
    query USERS_WITH_DETAILS {
-      detailedUsers {
-         user {
-            id
-            email
-            subscribedToUserIds
-         }
+      users {
+         id
+         email
+         subscribedToUserIds
+
          profile {
             userId
             memberTypeId
@@ -123,12 +127,10 @@
    ```
 
    query USER_WITH_DETAIL($id: ID!) {
-      detailedUser(id: $id) {
-         user {
-            id
-            email
-            subscribedToUserIds
-         }
+      user(id: $id) {
+         id
+         email
+         subscribedToUserIds
          profile {
             userId
             memberTypeId

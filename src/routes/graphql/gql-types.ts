@@ -68,6 +68,20 @@ export const UserType: any = new GraphQLObjectType({
         return userPosts;
       },
     },
+    memberType: {
+      type: MemberType,
+      resolve: async (parent, _, context) => {
+        const profile = await context.db.profiles.findOne({
+          key: 'userId',
+          equals: parent.id,
+        });
+        const memberType = await context.db.memberTypes.findOne({
+          key: 'id',
+          equals: profile?.memberTypeId,
+        });
+        return memberType;
+      },
+    },
   }),
 });
 export const ProfileType = new GraphQLObjectType({
@@ -104,16 +118,7 @@ export const MemberType = new GraphQLObjectType({
     monthPostsLimit: { type: new GraphQLNonNull(GraphQLInt) },
   }),
 });
-export const DetailedUserType = new GraphQLObjectType({
-  name: 'DetailedUserType',
-  description: 'Detailed User Type',
-  fields: () => ({
-    user: { type: UserType },
-    profile: { type: ProfileType },
-    posts: { type: new GraphQLNonNull(new GraphQLList(PostType)) },
-    memberType: { type: MemberType },
-  }),
-});
+
 export const ProfileWithSubscriptionsType = new GraphQLObjectType({
   name: 'ProfileWithSubscriptionsType',
   description: 'Profile With Subscriptions Type ',
