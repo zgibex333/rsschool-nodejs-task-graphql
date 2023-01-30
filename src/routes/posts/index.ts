@@ -6,7 +6,11 @@ import type { PostEntity } from '../../utils/DB/entities/DBPosts';
 const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
   fastify
 ): Promise<void> => {
-  fastify.get('/', async function (request, reply): Promise<PostEntity[]> {});
+  fastify.get('/', async function (request, reply): Promise<PostEntity[]> {
+    const posts = await fastify.db.posts.findMany();
+    if (!posts) throw fastify.httpErrors.notFound();
+    return posts;
+  });
 
   fastify.get(
     '/:id',
@@ -15,7 +19,14 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
         params: idParamSchema,
       },
     },
-    async function (request, reply): Promise<PostEntity> {}
+    async function (request, reply): Promise<PostEntity> {
+      const post = await fastify.db.posts.findOne({
+        key: 'id',
+        equals: request.params.id,
+      });
+      if (!post) throw fastify.httpErrors.notFound();
+      return post;
+    }
   );
 
   fastify.post(
@@ -25,7 +36,22 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
         body: createPostBodySchema,
       },
     },
-    async function (request, reply): Promise<PostEntity> {}
+    async function (request, reply): Promise<PostEntity> {
+      const { content, title, userId } = request.body;
+      if (
+        typeof content !== 'string' ||
+        typeof title !== 'string' ||
+        typeof userId !== 'string' ||
+        !content ||
+        !title ||
+        !userId
+      )
+        throw fastify.httpErrors.badRequest();
+
+      const newPost = await fastify.db.posts.create(request.body);
+      if (!newPost) throw fastify.httpErrors.HttpError;
+      return newPost;
+    }
   );
 
   fastify.delete(
@@ -35,7 +61,15 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
         params: idParamSchema,
       },
     },
-    async function (request, reply): Promise<PostEntity> {}
+    async function (request, reply): Promise<PostEntity> {
+      try {
+        const post = await fastify.db.posts.delete(request.params.id);
+        if (!post) throw fastify.httpErrors.notFound();
+        return post;
+      } catch {
+        throw fastify.httpErrors.badRequest();
+      }
+    }
   );
 
   fastify.patch(
@@ -46,7 +80,26 @@ const plugin: FastifyPluginAsyncJsonSchemaToTs = async (
         params: idParamSchema,
       },
     },
-    async function (request, reply): Promise<PostEntity> {}
+    async function (request, reply): Promise<PostEntity> {
+      const { content, title } = request.body;
+      if (
+        !(
+          (typeof content === 'string' && content) ||
+          (typeof title === 'string' && title)
+        )
+      )
+        throw fastify.httpErrors.badRequest();
+      try {
+        const post = await fastify.db.posts.change(
+          request.params.id,
+          request.body
+        );
+        if (!post) throw fastify.httpErrors.notFound();
+        return post;
+      } catch {
+        throw fastify.httpErrors.badRequest();
+      }
+    }
   );
 };
 
